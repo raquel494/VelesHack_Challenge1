@@ -1,51 +1,63 @@
+
 import json
 
 from langchain_core.tools import tool
 
-from helpers import ReadFileError, ValidateFileError, read_file, validate_file
+from helpers import (
+    ReadFileError,
+    ValidateFileError,
+    read_file,
+    validate_file,
+)
 
+
+# ============================================================
+# HERRAMIENTAS
+# ============================================================
 
 @tool
 def create_folder(path: str) -> str:
-    """Create a folder in the IDE workspace. path is relative to the workspace root, e.g. 'demo/sub'."""
+    """Create a folder in the IDE workspace. path is relative to the workspace root."""
     return "ok"
 
 
 @tool
 def delete_folder(path: str) -> str:
-    """Delete a folder from the IDE workspace. path is the folder path or just its name."""
+    """Delete a folder from the IDE workspace."""
     return "ok"
 
 
 @tool
 def create_file(path: str, content: str) -> str:
     """Create a new file in the IDE workspace and open it in the editor.
-    path is relative to the workspace root (e.g. 'demo/nginx.yaml'). content is the full text of the file."""
+    path is relative to the workspace root. content is the full text.
+    """
     return "ok"
 
 
 @tool
 def edit_file(path: str, content: str) -> str:
     """Replace the WHOLE content of an existing file and open it in the editor.
-    path can be just the file name. content is the complete new text of the file."""
+    content is the complete new text.
+    """
     return "ok"
 
 
 @tool
 def delete_file(path: str) -> str:
-    """Delete a file from the IDE workspace. path can be just the file name."""
+    """Delete a file from the IDE workspace."""
     return "ok"
 
 
 @tool
 def read_tool_file(path: str) -> str:
-    """Read the content of a file in the IDE workspace. path can be just the file name."""
+    """Read the content of a file in the IDE workspace."""
     return "ok"
 
 
 @tool
 def validate_tool_file(path: str) -> str:
-    """Validate a YAML file of the IDE workspace and return its errors and warnings. path can be just the file name."""
+    """Validate a YAML file of the IDE workspace."""
     return "ok"
 
 
@@ -59,6 +71,11 @@ TOOLS = [
     validate_tool_file,
 ]
 
+
+# ============================================================
+# ARGUMENTOS ESPERADOS
+# ============================================================
+
 ACTIONS = {
     "create_folder": ["path"],
     "delete_folder": ["path"],
@@ -67,41 +84,159 @@ ACTIONS = {
     "delete_file": ["path"],
 }
 
+
 MAX_RESULT_CHARS = 6000
 
+
+# ============================================================
+# VALIDACIÓN DE RUTAS
+# ============================================================
 
 def _path_ok(path):
     if not isinstance(path, str) or not path.strip():
         return False
-    ruta = path.replace("\\", "/")
-    return not ruta.startswith("/") and ":" not in ruta and ".." not in ruta.split("/")
 
+    ruta = path.replace("\\", "/")
+
+    return (
+        not ruta.startswith("/")
+        and ":" not in ruta
+        and ".." not in ruta.split("/")
+    )
+
+
+# ============================================================
+# EJECUCIÓN DE HERRAMIENTAS
+# ============================================================
 
 async def execute_tool(name, args):
-    """Returns (event for the IDE or None, text result for the model)."""
+    """
+    Returns:
+        (event for the IDE, text result for the model)
+    """
+
     args = args or {}
 
+    # --------------------------------------------------------
+    # CREAR / EDITAR / ELIMINAR
+    # --------------------------------------------------------
+
     if name in ACTIONS:
-        faltan = [k for k in ACTIONS[name] if not isinstance(args.get(k), str)]
+
+        faltan = [
+            k
+            for k in ACTIONS[name]
+            if not isinstance(args.get(k), str)
+        ]
+
         if faltan:
-            return None, f"Error: missing arguments {faltan}."
+            return (
+                None,
+                f"Error: missing arguments {faltan}.",
+            )
+
         if not _path_ok(args["path"]):
-            return None, "Error: path must be relative to the workspace, never absolute and never contain '..'."
-        evento = {"action": name, **{k: args[k] for k in ACTIONS[name]}}
-        return evento, f"OK: {name} done for {args['path']}."
+            return (
+                None,
+                "Error: path must be relative to the "
+                "workspace, never absolute and never contain '..'.",
+            )
+
+        evento = {
+            "action": name,
+            **{
+                k: args[k]
+                for k in ACTIONS[name]
+            },
+        }
+
+        return (
+            evento,
+            f"OK: {name} done for {args['path']}.",
+        )
+
+    # --------------------------------------------------------
+    # LEER ARCHIVO
+    # --------------------------------------------------------
 
     if name == "read_tool_file":
+
+        path = args.get("path", "")
+
+        if not _path_ok(path):
+            return (
+                None,
+                "Error: invalid file path.",
+            )
+
         try:
-            contenido = await read_file(args.get("path", ""))
+            contenido = await read_file(path)
+
         except ReadFileError as exc:
-            return None, f"Error: {exc}"
-        return None, contenido[:MAX_RESULT_CHARS]
+            return (
+                None,
+                f"Error: {exc}",
+            )
+
+        contenido = contenido[:MAX_RESULT_CHARS]
+
+        # Evento para que la interfaz pueda mostrar
+        # el contenido del archivo.
+        evento = {
+            "action": "read_file",
+            "path": path,
+            "content": contenido,
+        }
+
+        return (
+            evento,
+            contenido,
+        )
+
+    # --------------------------------------------------------
+    # VALIDAR ARCHIVO
+    # --------------------------------------------------------
 
     if name == "validate_tool_file":
-        try:
-            informe = await validate_file(args.get("path", ""))
-        except ValidateFileError as exc:
-            return None, f"Error: {exc}"
-        return None, json.dumps(informe)[:MAX_RESULT_CHARS]
 
-    return None, f"Error: unknown tool {name}."
+        path = args.get("path", "")
+
+        if not _path_ok(path):
+            return (
+                None,
+                "Error: invalid file path.",
+            )
+
+        try:
+            informe = await validate_file(path)
+
+        except ValidateFileError as exc:
+            return (
+                None,
+                f"Error: {exc}",
+            )
+
+        informe_texto = json.dumps(
+            informe,
+            ensure_ascii=False,
+        )[:MAX_RESULT_CHARS]
+
+        evento = {
+            "action": "validate_file",
+            "path": path,
+            "result": informe,
+        }
+
+        return (
+            evento,
+            informe_texto,
+        )
+
+    # --------------------------------------------------------
+    # HERRAMIENTA DESCONOCIDA
+    # --------------------------------------------------------
+
+    return (
+        None,
+        f"Error: unknown tool {name}.",
+    )
