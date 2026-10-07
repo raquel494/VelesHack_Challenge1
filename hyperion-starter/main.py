@@ -260,6 +260,19 @@ RESPUESTAS_BASICAS = {
     "bien": "Perfecto 😊",
     "entendido": "Perfecto 👍",
     "de acuerdo": "De acuerdo 👍",
+    "qué puedes hacer": (
+    "Puedo ayudarte con HYPER-AI y el HyperAI IDE. "
+    "Puedo responder preguntas sobre el proyecto y su documentación, "
+    "crear, leer, modificar y eliminar archivos, crear carpetas "
+    "y validar configuraciones YAML."
+),
+
+"que puedes hacer": (
+    "Puedo ayudarte con HYPER-AI y el HyperAI IDE. "
+    "Puedo responder preguntas sobre el proyecto y su documentación, "
+    "crear, leer, modificar y eliminar archivos, crear carpetas "
+    "y validar configuraciones YAML."
+),
 }
 
 
