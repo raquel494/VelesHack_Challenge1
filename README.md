@@ -1,1 +1,2 @@
-# VelesHack_Challenge1
+# hackathon-veles-hack
+Hackathon epic projects
